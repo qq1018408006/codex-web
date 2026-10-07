@@ -6,7 +6,8 @@ https://github.com/user-attachments/assets/0a33cbd8-741c-412c-9e75-46dfe9324596
 
 This fork extends [0xcaff/codex-web](https://github.com/0xcaff/codex-web) with
 persistent shared Linux sessions, Desktop tool compatibility, and configurable
-LAN access. [中文安装与使用说明](docs/shared-sessions.zh-CN.md).
+LAN access, plus compressed browser assets and live IPC traffic.
+[中文安装与使用说明](docs/shared-sessions.zh-CN.md).
 
 ## motivation
 
@@ -120,6 +121,27 @@ the official plugin, and signed-in Codex, and consumes some model quota. Set
 `CODEX_TEST_CODEX`, `CODEX_TEST_BROWSER`, `CODEX_TEST_APP_TOOLS`,
 `CODEX_TEST_HOST`, or `CODEX_TEST_PORT` to override test dependencies and address.
 The integration test uses port 8220 by default and never restarts user services.
+
+### mobile loading and reverse proxies
+
+The build precompresses large webview assets with gzip and Brotli. The server
+negotiates the supported representation and retains the original files as a
+fallback. The browser IPC WebSocket also negotiates compression for large
+messages; clients without compression remain supported. Compression preserves
+the full session state and tool catalogs.
+
+HTTPS proxies must forward WebSocket upgrades for `/__backend/ipc`, retain that
+path, and use HTTP/1.1 upstream. A regular HTTP 200 response to this endpoint can
+leave the renderer on its startup logo even though all scripts have downloaded.
+Check a deployment with:
+
+```bash
+node scripts/check-connection.cjs https://your-codex-domain.example
+```
+
+The expected result is `101`, followed by the negotiated compression extension.
+See the [Nginx/frp example](docs/shared-sessions.zh-CN.md#nginx--frp-公网入口)
+for proxy configuration and authentication requirements.
 
 ### proxying to app-server (advanced usage)
 

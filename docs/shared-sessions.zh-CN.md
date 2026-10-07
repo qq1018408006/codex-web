@@ -8,6 +8,7 @@
 - 网页重启时，后台继续运行，正在执行的任务不会因为网页服务重启而停止。
 - Desktop 工具连接实际打开的网页，可以读取会话、列出会话；网页重启后可以重新连接。
 - 安装时选择“仅本机”或“局域网”。修复手机通过普通 HTTP 打开时因 UUID 接口缺失导致的白屏。
+- 构建时压缩网页文件，并压缩实时会话同步，减少手机首次打开时的下载量。会话内容和工具目录仍完整传输。
 
 它不会自动把所有原生 CLI、Desktop、VS Code 会话接入同一个后台。需要共享的终端会话请通过 `codex-shared` 打开。
 
@@ -75,6 +76,51 @@ python3 scripts/install-services.py --access lan --port 8214 --restart
 | `--restart`                    | 安装后启动或重启网页服务                    |
 
 网络选择保存到 `~/.config/codex-web/server.json`。以后更新时，不传网络参数就保留上次的选择。
+
+## 手机下载量与启动 logo
+
+网页沿用了 Desktop 的界面，首次打开需要下载较大的 JavaScript 文件，还会同步会话状态。构建自动生成 gzip 和 Brotli 文件；浏览器支持哪种就使用哪种，不支持时仍可下载原文件。实时连接也会协商压缩。压缩不会删除历史记录或工具功能，手机仍需解析完整的数据，因此加载时间也取决于手机性能。
+
+如果文件下载完仍停在 logo，请检查实时连接。网页文件能下载，不代表实时连接已经建立：
+
+```bash
+node scripts/check-connection.cjs http://127.0.0.1:8214
+node scripts/check-connection.cjs https://你的域名
+```
+
+正常输出 `WebSocket upgrade returned 101`。如果本机正常、公网返回 `HTTP 200`，说明公网路径把实时连接当成普通网页处理了，应检查代理转发。这个命令不带浏览器的登录 cookie；已配置认证的入口可能返回 401/403，需要在已登录的浏览器中继续验证。
+
+## Nginx + frp 公网入口
+
+可以保留现有的 `frp type = "http"` 和 Nginx HTTPS 入口。Nginx 需要将实时连接路径 `/__backend/ipc` 原样转发到 frps 的 HTTP 入口，并转发升级连接所需的请求头。
+
+在域名对应的 HTTPS `server` 内加入下面的 `location`，把 `127.0.0.1:8080` 改成你现有 `proxy_pass` 使用的 frps HTTP 地址和端口。这里的 8080 只是示例，不能直接假定它就是你的端口。保留现有证书、普通网页路由和认证配置。
+
+```nginx
+location = /__backend/ipc {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_buffering off;
+}
+```
+
+`proxy_pass` 不要在上游地址后添加 `/` 或改写路径；这里必须保留 `/__backend/ipc`。`Host` 也必须正确传递，因为 frps 的 HTTP 代理会按域名选择本机服务。
+
+如果认证原本只写在 `location /` 中，新建的实时连接 `location` 不会自动继承它。需要把认证提升到 `server` 层或同时应用到两处，确保网页和实时连接都受保护。
+
+在公网服务器上检查配置，成功后平滑重新加载：
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+再次执行公网连接检查，应返回 101，再在手机浏览器中刷新。Nginx 的升级转发要求见[官方说明](https://nginx.org/en/docs/http/websocket.html)，frps 的按域名转发配置见[官方示例](https://gofrp.org/en/docs/examples/vhost-http/)。
 
 ## 日常使用
 

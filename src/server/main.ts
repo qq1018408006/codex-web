@@ -18,6 +18,7 @@ import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import { installModuleAliasHook } from "./module";
 import { prepareDesktopTools } from "./desktop-tools";
+import { BROWSER_SOCKET_OPTIONS, WEBVIEW_STATIC_OPTIONS } from "./transport";
 import { glob } from "glob";
 
 type ServerOptions = {
@@ -441,7 +442,7 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
   }
   const bridgeState = getIpcMainBridgeState();
   const app = Fastify({ logger: false });
-  const websocketServer = new WebSocketServer({ noServer: true });
+  const websocketServer = new WebSocketServer(BROWSER_SOCKET_OPTIONS);
 
   await app.register(fastifyMultipart, {
     limits: {
@@ -488,6 +489,7 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
   await app.register(fastifyStatic, {
     root: path.resolve(__dirname, "../../scratch/asar/webview"),
     prefix: "/",
+    ...WEBVIEW_STATIC_OPTIONS,
   });
 
   const html = await fs.readFile(
