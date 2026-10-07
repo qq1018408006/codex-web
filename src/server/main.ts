@@ -17,11 +17,14 @@ import Fastify from "fastify";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import { installModuleAliasHook } from "./module";
+import { prepareDesktopTools } from "./desktop-tools";
 import { glob } from "glob";
 
 type ServerOptions = {
   host: string;
   port: number;
+  sharedSocket?: string;
+  appTools?: string;
 };
 
 type RendererToMainMessage =
@@ -239,6 +242,7 @@ type RendererWindow = {
 };
 
 type IpcMainBridgeState = {
+  isRendererConnected?: (webContentsId: number) => boolean;
   setRendererWindowFactory?: (factory: () => Promise<RendererWindow>) => void;
   sendToRenderer?: (
     webContentsId: number,
@@ -266,7 +270,7 @@ function printUsage(): void {
   console.log(
     [
       "Usage:",
-      "  server [--host <host>] [--port <port>]",
+      "  server [--host <host>] [--port <port>] [--shared-socket <path>] [--app-tools <server.mjs>]",
       "",
       "Defaults:",
       "  --host 127.0.0.1",
@@ -302,6 +306,8 @@ function parseServerArgs(args: string[]): ServerOptions {
       port: {
         type: "string",
       },
+      "shared-socket": { type: "string" },
+      "app-tools": { type: "string" },
     },
     strict: true,
   });
@@ -314,6 +320,8 @@ function parseServerArgs(args: string[]): ServerOptions {
   return {
     host: parsed.values.host ?? "127.0.0.1",
     port: parsed.values.port ? parsePort(parsed.values.port) : 8214,
+    sharedSocket: parsed.values["shared-socket"],
+    appTools: parsed.values["app-tools"],
   };
 }
 
@@ -411,6 +419,26 @@ function ensureElectronLikeProcessContext(): void {
 }
 
 async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
+  if (options.sharedSocket) {
+    process.env.CODEX_UNIX_SOCKET = path.resolve(options.sharedSocket);
+    process.env.CODEX_CLI_PATH = path.resolve(
+      __dirname,
+      "../../runtime/codex-web-proxy",
+    );
+  }
+  if (process.env.CODEX_UNIX_SOCKET) {
+    process.env.CODEX_CLI_PATH ??= path.resolve(
+      __dirname,
+      "../../runtime/codex-web-proxy",
+    );
+    process.env.CODEX_SHARED_TOOLS_PIPE_PATH ??= path.join(
+      path.dirname(process.env.CODEX_UNIX_SOCKET),
+      "tools.sock",
+    );
+    const tools = prepareDesktopTools(options.appTools);
+    if (tools) process.env.CODEX_SHARED_TOOLS_MCP = tools;
+    else delete process.env.CODEX_SHARED_TOOLS_MCP;
+  }
   const bridgeState = getIpcMainBridgeState();
   const app = Fastify({ logger: false });
   const websocketServer = new WebSocketServer({ noServer: true });
@@ -462,9 +490,20 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
     prefix: "/",
   });
 
-  app.get("/", async (_request, reply) => {
-    return reply.sendFile("index.html");
-  });
+  const html = await fs.readFile(
+    path.resolve(__dirname, "../../scratch/asar/webview/index.html"),
+    "utf8",
+  );
+  const pageHtml = html.replace(
+    "<!-- CODEX_WEB_RUNTIME -->",
+    `<script>window.__CODEX_SHARED_RUNTIME__=${Boolean(process.env.CODEX_UNIX_SOCKET)};</script>`,
+  );
+  app.get("/", async (_request, reply) =>
+    reply.type("text/html").send(pageHtml),
+  );
+  app.get("/index.html", async (_request, reply) =>
+    reply.type("text/html").send(pageHtml),
+  );
 
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith("/@fs/")) {
@@ -472,7 +511,7 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
     }
 
     if (request.method === "GET") {
-      return reply.sendFile("index.html");
+      return reply.type("text/html").send(pageHtml);
     }
     return reply.code(404).send({ error: "Not Found" });
   });
@@ -492,6 +531,8 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
   });
 
   const rendererSockets = new Map<number, WebSocket>();
+  bridgeState.isRendererConnected = (id) =>
+    rendererSockets.get(id)?.readyState === WebSocket.OPEN;
   const rendererWindowFactory = new Promise<() => Promise<RendererWindow>>(
     (resolve) => {
       bridgeState.setRendererWindowFactory = resolve;

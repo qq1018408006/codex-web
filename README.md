@@ -4,6 +4,10 @@ a browser frontend for codex desktop, running on a machine you control.
 
 https://github.com/user-attachments/assets/0a33cbd8-741c-412c-9e75-46dfe9324596
 
+This fork extends [0xcaff/codex-web](https://github.com/0xcaff/codex-web) with
+persistent shared Linux sessions, Desktop tool compatibility, and configurable
+LAN access. [中文安装与使用说明](docs/shared-sessions.zh-CN.md).
+
 ## motivation
 
 the agents were never meant to stay trapped in a terminal window for long.
@@ -29,13 +33,13 @@ it.
 run it with `npx`:
 
 ```bash
-npx --yes github:0xcaff/codex-web
+npx --yes github:qq1018408006/codex-web
 ```
 
 or with nix:
 
 ```bash
-nix run github:0xcaff/codex-web
+nix run github:qq1018408006/codex-web
 ```
 
 then open <http://127.0.0.1:8214> in a browser.
@@ -48,6 +52,74 @@ server.
 ```bash
 codex login --device-auth
 ```
+
+### shared Linux sessions and LAN setup
+
+Web and the `codex-shared` CLI can connect to the same long-lived app-server.
+Restarting Web leaves that server and its sessions running. The installer creates
+user services and a versioned snapshot; it retains the original `codex` command
+and does not edit the global Codex configuration.
+
+Requirements: Linux with `systemd --user`, Python 3, Node 22.12+, Codex CLI
+0.160.1+, and `websocat` on `PATH`. Sign in to Codex first, then build and install
+from a checkout:
+
+```bash
+git clone https://github.com/qq1018408006/codex-web.git
+cd codex-web
+npm ci
+python3 scripts/install-services.py --access local --restart
+```
+
+To allow a phone on the same trusted LAN, choose `--access lan` during installation:
+
+```bash
+python3 scripts/install-services.py --access lan --port 8214 --restart
+```
+
+Open `http://<computer-LAN-IP>:8214` on the phone. The Web server has no built-in
+authentication; read the security section below before enabling LAN access.
+The saved host and port are retained on subsequent installs when those flags
+are omitted. `--host <IP>` selects a specific interface; `--dry-run` previews the
+configuration without changing services.
+
+Use `~/.local/bin/codex-shared` for a shared interactive session, or
+`~/.local/bin/codex-shared resume <session-id>` to reopen one. Use the original
+`codex` for login, plugins, and other standalone commands. Ordinary Desktop and
+VS Code sessions remain independent unless explicitly attached to this server.
+
+Desktop tools use the user's existing official `codex-app-tools` 0.1.5 plugin,
+loaded from its installed cache. Supply another installation location with
+`--app-tools /path/to/server.mjs`. Without it, shared sessions still work and the
+orphan Desktop-only tool whitelist is removed locally. The plugin is not bundled
+in this repository.
+
+Already loaded CLI threads may retain their original tool configuration. Finish
+the current turn, close its clients, and reopen it in Web, or create a new Web
+thread to obtain Desktop tools. Those tools require an open, initialized Web tab.
+This compatibility layer does not provide the unfinished browser/computer-use
+features listed in the roadmap.
+
+For a manually managed shared server:
+
+```bash
+node src/server/main.js --shared-socket /path/to/app.sock --host 127.0.0.1
+```
+
+The default mode still starts its own Codex process. Plain HTTP LAN pages and
+runtime workers receive a UUID fallback backed by `crypto.getRandomValues`,
+avoiding the blank page caused by missing `crypto.randomUUID` outside a secure
+context. Browser features that require HTTPS still require HTTPS.
+
+Run `npm test` for compatibility, installer, and supervisor checks.
+`npm run test:install` exercises first installation and upgrades in a temporary
+home with service commands intercepted. After a build,
+`npm run test:integration` uses an isolated app-server and mobile-sized browser to
+check real Desktop tool calls across a Web restart. It requires Google Chrome,
+the official plugin, and signed-in Codex, and consumes some model quota. Set
+`CODEX_TEST_CODEX`, `CODEX_TEST_BROWSER`, `CODEX_TEST_APP_TOOLS`,
+`CODEX_TEST_HOST`, or `CODEX_TEST_PORT` to override test dependencies and address.
+The integration test uses port 8220 by default and never restarts user services.
 
 ### proxying to app-server (advanced usage)
 

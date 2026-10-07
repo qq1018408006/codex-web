@@ -389,10 +389,10 @@ electronShim.overrideAdapter = {
     }
 
     if (evaluation.name === "1042620455") {
-      // Remote control (Slingshot).
+      // Shared local sessions use the local app view instead of Slingshot.
       return {
         ...evaluation,
-        value: true,
+        value: !(window as Window & { __CODEX_SHARED_RUNTIME__?: boolean }).__CODEX_SHARED_RUNTIME__,
       };
     }
 
