@@ -4,9 +4,9 @@ a browser frontend for codex desktop, running on a machine you control.
 
 https://github.com/user-attachments/assets/0a33cbd8-741c-412c-9e75-46dfe9324596
 
-This fork extends [0xcaff/codex-web](https://github.com/0xcaff/codex-web) with
-persistent shared Linux sessions, Desktop tool compatibility, and configurable
-LAN access, plus compressed browser assets and cached live IPC traffic.
+The optional Linux shared mode provides persistent sessions, Desktop tool
+compatibility, and configurable LAN access. Compressed browser assets and cached
+live IPC traffic reduce repeated downloads on mobile connections.
 [中文安装与使用说明（从依赖安装到日常使用）](docs/shared-sessions.zh-CN.md).
 
 ## start here: Linux shared sessions
@@ -33,7 +33,7 @@ Once dependencies are ready:
 
 ```bash
 codex login --device-auth
-git clone --branch feat/shared-linux-sessions https://github.com/qq1018408006/codex-web.git
+git clone https://github.com/0xcaff/codex-web.git
 cd codex-web
 npm ci
 python3 scripts/install-services.py --access local --restart
@@ -86,13 +86,13 @@ it.
 run it with `npx`:
 
 ```bash
-npx --yes github:qq1018408006/codex-web#feat/shared-linux-sessions
+npx --yes github:0xcaff/codex-web
 ```
 
 or with nix:
 
 ```bash
-nix run github:qq1018408006/codex-web/feat/shared-linux-sessions
+nix run github:0xcaff/codex-web
 ```
 
 then open <http://127.0.0.1:8214> in a browser.
@@ -118,7 +118,7 @@ Requirements: Linux with `systemd --user`, Python 3, Node 22.12+, Codex CLI
 from a checkout:
 
 ```bash
-git clone --branch feat/shared-linux-sessions https://github.com/qq1018408006/codex-web.git
+git clone https://github.com/0xcaff/codex-web.git
 cd codex-web
 npm ci
 python3 scripts/install-services.py --access local --restart
@@ -230,7 +230,7 @@ codex app-server --listen unix://codex-app-server.sock
 then run `codex-web` with the proxy helper:
 
 ```bash
-nix shell github:qq1018408006/codex-web/feat/shared-linux-sessions github:qq1018408006/codex-web/feat/shared-linux-sessions#codex_remote_proxy -c bash -lc '
+nix shell github:0xcaff/codex-web github:0xcaff/codex-web#codex_remote_proxy -c bash -lc '
   export CODEX_UNIX_SOCKET=/tmp/codex-app-server/codex-app-server.sock
   export CODEX_CLI_PATH="$(command -v codex_remote_proxy)"
   codex-web

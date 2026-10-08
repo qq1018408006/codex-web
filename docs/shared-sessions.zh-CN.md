@@ -1,6 +1,6 @@
 # Linux 共享会话与手机访问
 
-本项目基于 **0xcaff/codex-web**。这个 fork 增加了共享会话、Desktop 工具兼容和安装时选择局域网访问的功能。
+本项目是 **0xcaff/codex-web**。Linux 共享模式提供共享会话、Desktop 工具兼容和安装时选择局域网访问的功能。
 
 这份指南用于 Linux 上的长期共享后台。所有安装命令在运行 Codex 的那台电脑上执行，使用你平时的 Linux 用户；手机只需要浏览器。示例以 Ubuntu/Debian 和 Bash 为准，不需要 frp、Nginx，也不要求先安装 Desktop 应用。
 
@@ -119,12 +119,12 @@ systemctl --user show-environment >/dev/null
 下载源码、安装依赖并构建：
 
 ```bash
-git clone --branch feat/shared-linux-sessions https://github.com/qq1018408006/codex-web.git
+git clone https://github.com/0xcaff/codex-web.git
 cd codex-web
 npm ci
 ```
 
-命令明确选择共享功能分支，避免误装尚未包含功能的 `main`。若使用 GitHub 的 **Code → Download ZIP**，也要先选择 `feat/shared-linux-sessions`；解压后进入包含 `package.json` 的目录，再运行 `npm ci`。
+若使用 GitHub 的 **Code → Download ZIP**，解压后进入包含 `package.json` 的目录，再运行 `npm ci`。确认下载的版本包含 `scripts/install-services.py` 和 `runtime/codex-shared`；旧版本没有本指南中的共享安装功能。
 
 `npm ci` 会自动执行构建，不必再重复运行 `npm run build`。首次下载和解包可能需要几分钟；终端尚未退出时不要关闭它。正常结束后应同时存在 `src/server/main.js` 和 `scratch/asar/webview/index.html`。任何一步失败时先修复错误，再继续安装服务。
 
@@ -211,12 +211,12 @@ journalctl --user -u codex-shared.service -n 50 --no-pager
 使用 Git 下载的用户，在原源码目录更新：
 
 ```bash
-git pull --ff-only origin feat/shared-linux-sessions
+git pull --ff-only
 npm ci
 python3 scripts/install-services.py --restart
 ```
 
-如曾使用独立 CLI 或 `--app-tools`，再次安装时继续传入对应路径。`--app-tools` 是安装时参数，不保存在网络设置文件中。ZIP 用户重新下载同一功能分支，进入新解压的目录执行 `npm ci` 和安装命令；ZIP 目录不能直接 `git pull`。
+如曾使用独立 CLI 或 `--app-tools`，再次安装时继续传入对应路径。`--app-tools` 是安装时参数，不保存在网络设置文件中。ZIP 用户重新下载所用分支的新版本，进入新解压的目录执行 `npm ci` 和安装命令；ZIP 目录不能直接 `git pull`。
 
 安装器把程序和依赖保存成版本快照，再切换 `current` 入口。更新时只重启网页，不主动重启共享后台；旧任务继续使用原来启动的程序。后台程序升级在共享后台下一次启动时生效。
 
@@ -256,7 +256,7 @@ systemctl --user daemon-reload
 | `codex/websocat/node is required` | 缺少依赖或当前终端 PATH 未包含它。先运行对应的 `--version`；也可通过安装器的 `--codex`、`--websocat`、`--node` 指定完整路径。                                                |
 | 提示 Node 或 Codex 版本过低       | 检查当前终端实际使用的版本；按准备部分安装合适版本，再重新构建/安装。已有旧 Codex 可为共享后台单独安装 0.160.1。                                                             |
 | `npm ci` 下载失败                 | 检查电脑是否能访问 npm、GitHub 和 Desktop 下载地址；修复网络后重新执行 `npm ci`。安装器不能替代失败的构建。                                                                  |
-| `patch` 或兼容补丁报错            | 不要跳过报错继续安装；确认使用完整功能分支及锁定的 Desktop 版本，再重新执行 `npm ci`。                                                                                       |
+| `patch` 或兼容补丁报错            | 不要跳过报错继续安装；确认使用完整源代码及锁定的 Desktop 版本，再重新执行 `npm ci`。                                                                                         |
 | `Failed to connect to bus`        | 用户服务管理器不可用。通过正常用户登录/SSH 会话操作，并确认系统支持 `systemd --user`。                                                                                       |
 | 本机能打开，手机不能              | 确认安装时用了 `--access lan`，手机填写电脑 IP，双方网络可达；检查防火墙、访客 Wi-Fi 和设备隔离。用 `ss -ltnp 'sport = :8214'` 查看监听地址；仅 `127.0.0.1` 不能供手机直连。 |
 | 手机一直停在 logo                 | 执行连接检查，查看网页服务日志；实时连接应返回 101。只下载到网页文件并不足以进入会话。                                                                                       |

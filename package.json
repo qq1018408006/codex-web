@@ -31,7 +31,7 @@
     "test:install": "python3 tests/integration/install-smoke.py",
     "compress:assets": "node scripts/compress-assets.cjs"
   },
-  "repository": "https://github.com/qq1018408006/codex-web.git",
+  "repository": "git@github.com:0xcaff/codex-web.git",
   "author": "martin <martincharles07@gmail.com>",
   "license": "MIT",
   "dependencies": {
