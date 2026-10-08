@@ -6,7 +6,7 @@ https://github.com/user-attachments/assets/0a33cbd8-741c-412c-9e75-46dfe9324596
 
 This fork extends [0xcaff/codex-web](https://github.com/0xcaff/codex-web) with
 persistent shared Linux sessions, Desktop tool compatibility, and configurable
-LAN access, plus compressed browser assets and live IPC traffic.
+LAN access, plus compressed browser assets and cached live IPC traffic.
 [中文安装与使用说明](docs/shared-sessions.zh-CN.md).
 
 ## motivation
@@ -129,6 +129,22 @@ negotiates the supported representation and retains the original files as a
 fallback. The browser IPC WebSocket also negotiates compression for large
 messages; clients without compression remain supported. Compression preserves
 the full session state and tool catalogs.
+
+Large, identical IPC bodies are reused from a browser cache when refreshing the
+same tab. The server reads the current state and compares SHA-256 hashes before
+sending references; the browser validates and restores each original message.
+Large bodies also reuse unchanged segments when only a small part changes.
+Missing or damaged cache entries are
+replayed in order, including subsequent updates and approvals. No history is
+truncated, and the live app-server connection remains authoritative.
+
+The cache uses IndexedDB, scoped to the browser tab and Web process, with a
+one-hour expiry, a 64 MiB / 4,096-entry limit, and an 8 MiB limit per body. It stores
+session data on the device; expired entries are pruned during later writes.
+Clearing the site's browser storage removes it. Unavailable storage falls back
+to memory or ordinary transfer. Set `CODEX_WEB_IPC_CACHE=0` in the Web process
+environment to disable caching. First visits and changed content still require
+downloads; savings depend on the conversation and how it is reopened.
 
 HTTPS proxies must forward WebSocket upgrades for `/__backend/ipc`, retain that
 path, and use HTTP/1.1 upstream. A regular HTTP 200 response to this endpoint can
