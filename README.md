@@ -7,7 +7,54 @@ https://github.com/user-attachments/assets/0a33cbd8-741c-412c-9e75-46dfe9324596
 This fork extends [0xcaff/codex-web](https://github.com/0xcaff/codex-web) with
 persistent shared Linux sessions, Desktop tool compatibility, and configurable
 LAN access, plus compressed browser assets and cached live IPC traffic.
-[中文安装与使用说明](docs/shared-sessions.zh-CN.md).
+[中文安装与使用说明（从依赖安装到日常使用）](docs/shared-sessions.zh-CN.md).
+
+## start here: Linux shared sessions
+
+Use this path if you want a computer/SSH terminal and a phone browser to operate
+the same live session. Install on the Linux computer that will run Codex, as your
+normal user. The browser is only a client; it does not need Node or Codex installed.
+
+**There is currently no website login.** Start with local access. Enable LAN access
+only on a trusted network; anyone who can reach the server can operate Codex with
+your Linux user's permissions. `codex login` signs the server into OpenAI; it does
+not authenticate visitors to your website.
+
+Before cloning, install Git, curl, unzip, patch, Python 3, Node 22.12+ with npm,
+Codex CLI 0.160.1+, and websocat. Persistent shared services require Linux with
+`systemd --user`; they are separate from the basic macOS/standalone mode below.
+For step-by-step dependency commands, follow the
+[Ubuntu/Debian preparation guide](docs/shared-sessions.zh-CN.md#1-准备电脑).
+The shared runtime has been tested with Codex 0.160.1; newer CLI releases need
+their own verification. Installing the official Desktop app or its tool plugin
+is optional for basic shared sessions.
+
+Once dependencies are ready:
+
+```bash
+codex login --device-auth
+git clone --branch feat/shared-linux-sessions https://github.com/qq1018408006/codex-web.git
+cd codex-web
+npm ci
+python3 scripts/install-services.py --access local --restart
+systemctl --user is-active codex-shared.service codex-web.service
+node scripts/check-connection.cjs http://127.0.0.1:8214
+```
+
+`npm ci` builds automatically and downloads a roughly 567 MiB Desktop archive
+on the **server computer**, not on the phone. Allow several minutes and about
+5 GiB of free disk space for the build and installed snapshot. Both services
+should report `active`; the connection probe should report `101`. Open
+<http://127.0.0.1:8214>, then start a terminal session with
+`~/.local/bin/codex-shared`. Keep using the original `codex` for standalone
+sessions and account management.
+
+For phone access on a trusted LAN, rerun the installer with
+`--access lan --port 8214 --restart` and open `http://<computer-LAN-IP>:8214`.
+See the Chinese guide for
+[a computer/phone sharing check](docs/shared-sessions.zh-CN.md#4-验证电脑和手机是否共享同一会话),
+[updates and service management](docs/shared-sessions.zh-CN.md#5-日常管理与更新),
+and [common failures](docs/shared-sessions.zh-CN.md#常见问题).
 
 ## motivation
 
@@ -23,7 +70,12 @@ device with a browser.
 this project aims to be as thin a wrapper as possible to ensure upstream changes
 to the codex desktop app can be integrated quickly.
 
-## usage
+## standalone usage (without persistent shared services)
+
+The commands in this section start a standalone Web backend. They do not install
+`codex-shared` or the two Linux user services. Use the source installation above
+for terminal/browser sharing. The same Node and build-tool prerequisites apply
+to `npx`; it is not a prebuilt binary download.
 
 `codex-web` serves the browser client and hosts the desktop-side bridge. by
 default, it listens on `127.0.0.1:8214`.
@@ -34,13 +86,13 @@ it.
 run it with `npx`:
 
 ```bash
-npx --yes github:qq1018408006/codex-web
+npx --yes github:qq1018408006/codex-web#feat/shared-linux-sessions
 ```
 
 or with nix:
 
 ```bash
-nix run github:qq1018408006/codex-web
+nix run github:qq1018408006/codex-web/feat/shared-linux-sessions
 ```
 
 then open <http://127.0.0.1:8214> in a browser.
@@ -66,7 +118,7 @@ Requirements: Linux with `systemd --user`, Python 3, Node 22.12+, Codex CLI
 from a checkout:
 
 ```bash
-git clone https://github.com/qq1018408006/codex-web.git
+git clone --branch feat/shared-linux-sessions https://github.com/qq1018408006/codex-web.git
 cd codex-web
 npm ci
 python3 scripts/install-services.py --access local --restart
@@ -178,7 +230,7 @@ codex app-server --listen unix://codex-app-server.sock
 then run `codex-web` with the proxy helper:
 
 ```bash
-nix shell github:0xcaff/codex-web github:0xcaff/codex-web#codex_remote_proxy -c bash -lc '
+nix shell github:qq1018408006/codex-web/feat/shared-linux-sessions github:qq1018408006/codex-web/feat/shared-linux-sessions#codex_remote_proxy -c bash -lc '
   export CODEX_UNIX_SOCKET=/tmp/codex-app-server/codex-app-server.sock
   export CODEX_CLI_PATH="$(command -v codex_remote_proxy)"
   codex-web
@@ -243,14 +295,14 @@ talk.
 
 ## alternatives
 
-* [davej/pocodex](https://github.com/davej/pocodex) i used this until the wheels fell off. i needed subagents
+- [davej/pocodex](https://github.com/davej/pocodex) i used this until the wheels fell off. i needed subagents
   and an inline image viewer. this didn't have them and was having a hard time
   keeping up with upstream codex updates.
-* the native codex remote feature (behind a feature flag) is great for
+- the native codex remote feature (behind a feature flag) is great for
   connecting to remote codex hosts over ssh to manage long running tasks but
   this only works if you have codex desktop on your client device. this means it
   doesn't work on mobile.
-* upcoming first party mobile app from openai. `codex-web` exists and works
+- upcoming first party mobile app from openai. `codex-web` exists and works
   today. i can't wait for the mobile app but judging by the other openai mobile
   apps, i'm a little bit skeptical about the quality of the mobile experience.
   time will tell.
